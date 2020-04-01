@@ -11,6 +11,7 @@
     "foo": {
         },
     "files": [
+        "ui.ts",
         "main.ts",
         "README.md"
     ],
