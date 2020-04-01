@@ -10,11 +10,8 @@ interface MenuOptions {
 function showMenu(opts: MenuOptions) {
     let cursor = 0;
     let offset = 0;
-    let bcount = 0;
 
-    const tick = () => { }
     const move = (dx: number) => {
-        tick()
         let nc = cursor + dx
         if (nc < 0) nc = 0
         else if (nc >= opts.elements.length)
@@ -26,36 +23,20 @@ function showMenu(opts: MenuOptions) {
     }
 
     function showMenu() {
-        tick()
-
         cursor = 0
         offset = 0
 
-        controller.down.onEvent(ControllerButtonEvent.Pressed, function () {
-            move(1)
-        })
-        controller.down.onEvent(ControllerButtonEvent.Repeated, function () {
-            move(1)
-        })
+        controller.down.onEvent(ControllerButtonEvent.Pressed, () => move(1))
+        controller.down.onEvent(ControllerButtonEvent.Repeated, () => move(1))
 
-        controller.up.onEvent(ControllerButtonEvent.Pressed, function () {
-            move(-1)
-        })
-        controller.up.onEvent(ControllerButtonEvent.Repeated, function () {
-            move(-1)
-        })
+        controller.up.onEvent(ControllerButtonEvent.Pressed, () => move(-1))
+        controller.up.onEvent(ControllerButtonEvent.Repeated, () => move(-1))
 
-        controller.A.onEvent(ControllerButtonEvent.Pressed, function () {
-            control.runInBackground(function () {
-                opts.onA(cursor)
-            })
-        })
-
-        controller.B.onEvent(ControllerButtonEvent.Pressed, function () {
+        controller.A.onEvent(ControllerButtonEvent.Pressed, () =>
+            control.runInBackground(() => opts.onA(cursor)))
+        controller.B.onEvent(ControllerButtonEvent.Pressed, () => {
             if (opts.onB)
-                control.runInBackground(function () {
-                    opts.onB(cursor)
-                })
+                control.runInBackground(() => opts.onB(cursor))
         })
 
         game.onPaint(function () {
@@ -82,96 +63,73 @@ function showMenu(opts: MenuOptions) {
     showMenu()
 }
 
-namespace jacdac {
-    export class RemoteNamedDevice {
-        services: number[] = [];
-        boundTo: Device;
-        candidates: Device[];
-
-        constructor(
-            public name: string
-        ) { }
-
-        select(dev: Device) {
-            this.boundTo = dev
-        }
-    }
-
-    export class Device {
-        services: Buffer
-        lastSeen: number
-        _name: string
-        _shortId: string
-
-        constructor(public deviceId: string) {
-        }
-
-        get name() {
-            if (this._name === undefined)
-                this._name = settings.readString("#blah" + this.deviceId) || null
-            return this._name
-        }
-
-        get shortId() {
-            return this.deviceId;
-        }
-
-        toString() {
-            return this.shortId + (this.name ? ` (${this.name})` : ``)
-        }
-
-        hasService(service_class: number) {
-            for (let i = 4; i < this.services.length; i += 4)
-                if (this.services.getNumber(NumberFormat.UInt32LE, i) == service_class)
-                    return true
-            return false
-        }
-
-        sendCtrlCommand(cmd: number, payload: Buffer = null) {
-        }
-
-        static clearNameCache() {
-        }
-    }
-
-}
+const dns = new jacdac.DeviceNameClient()
 
 function describe(dev: jacdac.Device) {
-    return `${dev.shortId}`
+    let name = ""
+    if (dev == jacdac.selfDevice())
+        name = "<self>"
+    else {
+        const bound = dns.remoteNamedDevices.find(d => d.boundTo == dev)
+        if (bound) name = bound.name
+    }
+    return `${dev.shortId} ${name}`
 }
 
-function selectDevice(devs: jacdac.Device[]) {
+function wait(ms: number, msg: string) {
+    game.pushScene();
+
+    const dialog = new game.SplashDialog(screen.width, 35);
+    dialog.setText(msg);
+    dialog.cursor = img`.`
+
+    const s = sprites.create(dialog.image, -1);
+
+    game.onUpdate(() => {
+        dialog.update();
+    })
+
+    pause(ms)
+    game.popScene()
+}
+
+function selectDevice(cond: (dev: jacdac.Device) => boolean) {
     let res: jacdac.Device = undefined
+    let devs: jacdac.Device[]
     const opts: MenuOptions = {
         title: "Select device",
         footer: "A = select, B = identify",
-        elements: devs.map(describe).concat(["Cancel"]),
+        elements: null,
         onA: idx => {
             res = devs[idx] || null
         },
     }
+    function update() {
+        devs = jacdac.devices().filter(cond)
+        opts.elements = devs.map(describe).concat(["Cancel"])
+    }
     opts.onB = idx => {
         const d = devs[idx]
         if (d) {
-            d.sendCtrlCommand(0)
+            if (d == jacdac.selfDevice())
+                control.runInBackground(jacdac.onIdentifyRequest)
+            else
+                d.sendCtrlCommand(jacdac.CMD_CTRL_IDENTIFY)
             opts.highlightColor = 6
             pause(100)
             opts.highlightColor = 5
         }
     }
+    update()
     showMenu(opts)
-    pauseUntil(() => res !== undefined)
+    while (res === undefined) {
+        pause(100)
+        update()
+    }
     game.popScene()
     return res
 }
 
-let devs: jacdac.Device[] = []
-for (let i = 0; i < 20; ++i) {
-    devs.push(new jacdac.Device("dev" + i))
-}
-selectDevice(devs)
-
-
-
-
-
+jacdac.start()
+wait(1000, "Scanning...")
+selectDevice(d => true)

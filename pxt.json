@@ -2,8 +2,14 @@
     "name": "JD namer",
     "description": "",
     "dependencies": {
-        "device": "*"
+        "hw---stm32f401": "file:../../libs/hw---stm32f401",
+        "controller": "file:../../libs/controller",
+        "edge-connector": "file:../../libs/edge-connector",
+        "jacdac-services": "file:../../libs/jacdac-services",
+        "device": "file:../../libs/device"
     },
+    "foo": {
+        },
     "files": [
         "main.ts",
         "README.md"

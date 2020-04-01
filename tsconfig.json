@@ -2,8 +2,16 @@
     "compilerOptions": {
         "target": "es5",
         "noImplicitAny": true,
+        "noImplicitReturns": true,
         "outDir": "built",
-        "rootDir": "."
+        "rootDir": ".",
+        "newLine": "LF",
+        "sourceMap": false
     },
-    "exclude": ["pxt_modules/**/*test.ts"]
+    "include": [
+        "*.ts",
+        "../../node_modules/pxt-common-packages/libs/*/*.ts",
+        "../../node_modules/pxt-core/libs/pxt-common/*.ts",
+        "../../libs/*/*.ts"
+    ]
 }

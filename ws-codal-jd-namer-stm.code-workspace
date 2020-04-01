@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "built/codal/libraries/codal-big-brainpad"
+		},
+		{
+			"path": "built/codal/libraries/codal-core"
+		},
+		{
+			"path": "built/codal/libraries/codal-stm32"
+		}
+	]
+}
