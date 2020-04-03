@@ -6,21 +6,27 @@ function describe(dev: jacdac.Device) {
         name = "<self>"
     else {
         const bound = dns.remoteNamedDevices.find(d => d.boundTo == dev)
-        if (bound) name = bound.name
+        if (bound) name = "(" + bound.name + ")"
     }
     return `${dev.shortId} ${name}`
 }
 
 function describeRemote(dev: jacdac.RemoteNamedDevice) {
-    const bnd = dev.boundTo ? dev.boundTo.shortId : "----"
-    return `${bnd} ${dev.candidates.length} ${dev.name}`
+    let bnd = dev.boundTo ? dev.boundTo.shortId : ""
+    const n = dev.candidates.filter(c => c != dev.boundTo).length
+    if (n) {
+        if (bnd) bnd += "+" + n
+        else bnd = "" + n
+    }
+    if (bnd) bnd = "(" + bnd + ")"
+    return `${dev.name} ${bnd}`
 }
 
-function selectDevice(cond: (dev: jacdac.Device) => boolean) {
+function selectDevice(fun: string, cond: (dev: jacdac.Device) => boolean) {
     let res: jacdac.Device = undefined
     let devs: jacdac.Device[]
     const opts: ui.MenuOptions = {
-        title: "Select device",
+        title: "Function: " + fun,
         footer: "A = select, B = identify",
         elements: null,
         onA: idx => {
@@ -38,7 +44,6 @@ function selectDevice(cond: (dev: jacdac.Device) => boolean) {
                 control.runInBackground(jacdac.onIdentifyRequest)
             else
                 d.sendCtrlCommand(jacdac.CMD_CTRL_IDENTIFY)
-            ui.blinkMenuSelector(opts)
         }
     }
     update()
@@ -54,21 +59,41 @@ function selectDevice(cond: (dev: jacdac.Device) => boolean) {
 function selectName() {
     let remotes: jacdac.RemoteNamedDevice[]
     let done = false
+    const options = [
+        "Clear all names",
+        "Reset all devices",
+        "Cancel"
+    ]
     const opts: ui.MenuOptions = {
-        title: "Select required name",
+        title: "Bind function",
         footer: "A = select",
         elements: null,
         onA: idx => {
             const r = remotes[idx]
             if (r) {
-                const newD = selectDevice(d => r.isCandidate(d))
+                const newD = selectDevice(r.name, d => r.isCandidate(d))
                 r.select(newD)
+            } else {
+                let opt = idx - remotes.length
+                switch (opt) {
+                    case 0:
+                        dns.clearNames()
+                    // and reset everyone, just in case
+                    case 1: // fallthrough
+                        jacdac.JDPacket.onlyHeader(jacdac.CMD_CTRL_RESET)
+                            .sendAsMultiCommand(jd_class.CTRL)
+                        break
+                    case 2:
+                        done = true
+                        break
+                }
+
             }
         },
     }
     function update() {
         remotes = dns.remoteNamedDevices
-        opts.elements = remotes.map(describeRemote).concat(["Cancel"])
+        opts.elements = remotes.map(describeRemote).concat(options)
     }
     update()
     ui.showMenu(opts)
@@ -79,18 +104,20 @@ function selectName() {
     game.popScene()
 }
 
-function main() {
-    jacdac.start()
+function bindOneDNS() {
     let ourDNS: jacdac.Device = null
     while (ourDNS == null) {
+
         ui.wait(1000, "Scanning...")
+        //control.dmesgPerfCounters()
+
         const dns = jacdac.devices().filter(hasDNS)
         if (dns.length == 0) {
             game.splash("No DNS services found")
         } else if (dns.length == 1) {
             ourDNS = dns[0]
         } else {
-            ourDNS = selectDevice(hasDNS)
+            ourDNS = selectDevice("DNS", hasDNS)
         }
     }
 
@@ -104,5 +131,11 @@ function main() {
     }
 }
 
-main()
+function main() {
+    jacdac.start()
 
+    while (true)
+        bindOneDNS()
+}
+
+control.runInBackground(main)

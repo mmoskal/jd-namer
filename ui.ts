@@ -12,6 +12,7 @@ namespace ui {
     export function showMenu(opts: MenuOptions) {
         let cursor = 0;
         let offset = 0;
+        let blinkOut = 0;
 
         const move = (dx: number) => {
             let nc = cursor + dx
@@ -34,22 +35,31 @@ namespace ui {
             controller.up.onEvent(ControllerButtonEvent.Pressed, () => move(-1))
             controller.up.onEvent(ControllerButtonEvent.Repeated, () => move(-1))
 
-            controller.A.onEvent(ControllerButtonEvent.Pressed, () =>
-                control.runInBackground(() => opts.onA(cursor)))
+            controller.A.onEvent(ControllerButtonEvent.Pressed, () => {
+                blinkOut = control.millis() + 100
+                control.runInBackground(() => opts.onA(cursor))
+            })
             controller.B.onEvent(ControllerButtonEvent.Pressed, () => {
-                if (opts.onB)
+                if (opts.onB) {
+                    blinkOut = control.millis() + 100
                     control.runInBackground(() => opts.onB(cursor))
+                }
             })
 
             game.onPaint(function () {
                 const x = 10
                 screen.fillRect(0, 0, 160, 12, 12)
                 screen.print(opts.title, x - 1, 2, 4, image.font8)
+                let hl = opts.highlightColor || 5
+                if (blinkOut) {
+                    if (blinkOut < control.millis()) blinkOut = 0
+                    else hl = 6
+                }
                 for (let i = 0; i < 9; ++i) {
                     let e = opts.elements[i + offset] || "";
                     let y = 15 + i * 11
                     if (i + offset == cursor) {
-                        screen.fillRect(0, y - 2, 160, 11, opts.highlightColor || 5)
+                        screen.fillRect(0, y - 2, 160, 11, hl)
                         screen.print(e, x, y, 15)
                     }
                     else
@@ -66,8 +76,8 @@ namespace ui {
     }
 
     export function wait(ms: number, msg: string) {
+        const t0 = control.millis()
         game.pushScene();
-
         const dialog = new game.SplashDialog(screen.width, 35);
         dialog.setText(msg);
         dialog.cursor = img`.`
@@ -80,11 +90,5 @@ namespace ui {
 
         pause(ms)
         game.popScene()
-    }
-
-    export function blinkMenuSelector(opts: ui.MenuOptions) {
-        opts.highlightColor = 6
-        pause(100)
-        opts.highlightColor = 5
     }
 }
