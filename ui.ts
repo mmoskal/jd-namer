@@ -4,9 +4,16 @@ namespace ui {
         title: string
         footer?: string
         elements: string[]
-        onA: (idx: number) => void
-        onB?: (idx: number) => void
+        onA: (idx: number, opts: MenuOptions) => void
+        onB?: (idx: number, opts: MenuOptions) => void
+        update?: (opts: MenuOptions) => void
         highlightColor?: number
+        active?: boolean
+    }
+
+    export function exitMenu(opts: MenuOptions) {
+        game.popScene()
+        opts.active = false
     }
 
     export function showMenu(opts: MenuOptions) {
@@ -37,16 +44,20 @@ namespace ui {
 
             controller.A.onEvent(ControllerButtonEvent.Pressed, () => {
                 blinkOut = control.millis() + 100
-                control.runInBackground(() => opts.onA(cursor))
+                control.runInBackground(() => opts.onA(cursor, opts))
             })
             controller.B.onEvent(ControllerButtonEvent.Pressed, () => {
                 if (opts.onB) {
                     blinkOut = control.millis() + 100
-                    control.runInBackground(() => opts.onB(cursor))
+                    control.runInBackground(() => opts.onB(cursor, opts))
+                } else {
+                    exitMenu(opts)
                 }
             })
 
             game.onPaint(function () {
+                // if elements changed, cursor could be off limits - move(0) will limit it
+                if (cursor >= opts.elements.length) move(0)
                 const x = 10
                 screen.fillRect(0, 0, 160, 12, 12)
                 screen.print(opts.title, x - 1, 2, 4, image.font8)
@@ -72,11 +83,21 @@ namespace ui {
         }
 
         game.pushScene()
+        opts.active = true
+        if (opts.update) opts.update(opts)
         showMenu()
+
+        let cnt = 0
+        while (opts.active) {
+            if (cnt++ > 20 && opts.update) {
+                opts.update(opts)
+                cnt = 0
+            }
+            pause(20)
+        }
     }
 
     export function wait(ms: number, msg: string) {
-        const t0 = control.millis()
         game.pushScene();
         const dialog = new game.SplashDialog(screen.width, 35);
         dialog.setText(msg);
