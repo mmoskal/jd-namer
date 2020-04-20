@@ -105,9 +105,14 @@ function deviceBrowser() {
     let devs: jacdac.Device[] = []
     ui.showMenu({
         title: "JACDAC browser",
-        footer: "A = identify, B = back",
+        footer: "A = view, B = identify",
         elements: null,
         onA: (idx, opts) => {
+            const d = devs[idx]
+            if (d) deviceView(d)
+            else ui.exitMenu(opts)
+        },
+        onB: (idx, opts) => {
             const d = devs[idx]
             if (d) identify(d)
             else ui.exitMenu(opts)
@@ -115,7 +120,7 @@ function deviceBrowser() {
         update: opts => {
             devs = jacdac.devices()
             devs.sort((a, b) => a.shortId.compare(b.shortId))
-            opts.elements = devs.map(d => describe(d))
+            opts.elements = devs.map(d => describe(d)).concat(["Back"])
         }
     })
 }

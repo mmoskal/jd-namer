@@ -13,6 +13,7 @@
     "files": [
         "ui.ts",
         "main.ts",
+        "services.ts",
         "README.md"
     ],
     "testFiles": [
