@@ -30,6 +30,8 @@ const serviceDescs = [
 
 
 function deviceView(d: jacdac.Device) {
+    if (d == jacdac.selfDevice())
+        return
     const services: ServiceDesc[] = []
     for (let i = 4; i < d.services.length; i += 4) {
         const id = d.services.getNumber(NumberFormat.UInt32LE, i)
@@ -41,18 +43,23 @@ function deviceView(d: jacdac.Device) {
 
     let num = 0
 
-    ui.showMenu({
+    function noop() { }
+
+    menu.show({
         title: "Device: " + d.shortId,
-        footer: "A = test service, B = back",
-        elements: services.map(s => s.name).concat(["Back"]),
-        onA: (idx, opts) => {
-            const s = services[idx]
-            if (s) s.testFn(++num)
-            else ui.exitMenu(opts)
-        },
+        footer: "A = select/test service",
         update: opts => {
+            opts.elements = []
+            opts.elements.push(menu.item(d.classDescription, noop))
+            opts.elements.push(menu.item("Temp: " + (d.temperature || "?") + "C", noop))
+            // opts.elements.push(menu.item("Light: " + (d.lightLevel || "?"), noop))
+            opts.elements.push(menu.item("Identify", () => identify(d)))
+            opts.elements = opts.elements.concat(services.map(s => menu.item(s.name, () => {
+                s.testFn(++num)
+            })))
+
             if (!d.isConnected)
-                ui.exitMenu(opts)
+                menu.exit(opts)
         }
     })
 }

@@ -5,13 +5,13 @@ function describe(dev: jacdac.Device) {
     if (dev == jacdac.selfDevice())
         name = "<self>"
     else if (dns) {
-        const bound = dns.remoteNamedDevices.find(d => d.boundTo == dev)
+        const bound = dns.remoteRequestedDevices.find(d => d.boundTo == dev)
         if (bound) name = "(" + bound.name + ")"
     }
     return `${dev.shortId} ${name}`
 }
 
-function describeRemote(dev: jacdac.RemoteNamedDevice) {
+function describeRemote(dev: jacdac.RemoteRequestedDevice) {
     let bnd = dev.boundTo ? dev.boundTo.shortId : ""
     const n = dev.candidates.filter(c => c != dev.boundTo).length
     if (n) {
@@ -33,18 +33,15 @@ function identify(d: jacdac.Device) {
 function selectDevice(fun: string, cond: (dev: jacdac.Device) => boolean) {
     let res: jacdac.Device = undefined
     let devs: jacdac.Device[]
-    ui.showMenu({
+    menu.show({
         title: "Function: " + fun,
-        footer: "A = select, B = identify",
-        elements: null,
-        onA: (idx, opts) => {
-            res = devs[idx] || null
-            ui.exitMenu(opts)
-        },
-        onB: idx => identify(devs[idx]),
+        footer: "A = select, -> = identify",
         update: opts => {
             devs = jacdac.devices().filter(cond)
-            opts.elements = devs.map(describe).concat(["Cancel"])
+            opts.elements = devs.map(d => menu.item(describe(d), opts => {
+                res = d
+                menu.exit(opts)
+            }, () => identify(d)))
         }
     })
     return res
@@ -54,37 +51,18 @@ function operateDNS(ourDNS: jacdac.Device) {
     dns = new jacdac.DeviceNameClient(ourDNS.deviceId)
     dns.scan()
 
-    let remotes: jacdac.RemoteNamedDevice[]
-    const options = [
-        "Clear all names",
-        "Cancel"
-    ]
-
-    ui.showMenu({
+    menu.show({
         title: "Bind function",
-        footer: "A = select, B = back",
-        elements: null,
-        onA: (idx, opts) => {
-            const r = remotes[idx]
-            if (r) {
-                const newD = selectDevice(r.name, d => r.isCandidate(d))
-                r.select(newD)
-            } else {
-                let opt = idx - remotes.length
-                switch (opt) {
-                    case 0:
-                        dns.clearNames()
-                        resetAll() // and reset everyone, just in case
-                        break
-                    case 1:
-                        ui.exitMenu(opts)
-                        break
-                }
-            }
-        },
         update: opts => {
-            remotes = dns.remoteNamedDevices
-            opts.elements = remotes.map(describeRemote).concat(options)
+            opts.elements = dns.remoteRequestedDevices.map(r =>
+                menu.item(describeRemote(r), () => {
+                    const newD = selectDevice(r.name, d => r.isCandidate(d))
+                    r.select(newD)
+                }))
+            opts.elements.push(menu.item("Clear all names", () => {
+                dns.clearNames()
+                resetAll() // and reset everyone, just in case
+            }))
         }
     })
 }
@@ -103,24 +81,12 @@ function resetAll() {
 
 function deviceBrowser() {
     let devs: jacdac.Device[] = []
-    ui.showMenu({
+    menu.show({
         title: "JACDAC browser",
-        footer: "A = view, B = identify",
-        elements: null,
-        onA: (idx, opts) => {
-            const d = devs[idx]
-            if (d) deviceView(d)
-            else ui.exitMenu(opts)
-        },
-        onB: (idx, opts) => {
-            const d = devs[idx]
-            if (d) identify(d)
-            else ui.exitMenu(opts)
-        },
         update: opts => {
             devs = jacdac.devices()
             devs.sort((a, b) => a.shortId.compare(b.shortId))
-            opts.elements = devs.map(d => describe(d)).concat(["Back"])
+            opts.elements = devs.map(d => menu.item(describe(d), () => deviceView(d)))
         }
     })
 }
@@ -130,40 +96,19 @@ interface FnMap {
 }
 
 function mainMenu() {
-    const staticOptions: FnMap = {
-        "Device browser": deviceBrowser,
-        "Reset all devices": resetAll,
-    }
-
-    let funs: (() => void)[] = []
-
-    ui.showMenu({
+    menu.show({
         title: "JACDAC tool",
-        footer: "A = select",
-        elements: null,
-        onA: idx => {
-            const f = funs[idx]
-            if (f) f()
-        },
         update: opts => {
-            funs = []
-            let optionNames =
-                allDNSes().map(d => {
-                    funs.push(() => operateDNS(d))
-                    return "DNS: " + describe(d)
-                })
-            optionNames = optionNames.concat(Object.keys(staticOptions).map(s => {
-                funs.push(staticOptions[s])
-                return s
-            }))
-            opts.elements = optionNames
+            opts.elements = allDNSes().map(d => menu.item("DNS: " + describe(d), () => operateDNS(d)))
+            opts.elements.push(menu.item("Device browser", deviceBrowser))
+            opts.elements.push(menu.item("Reset all devices", resetAll))
         }
     })
 }
 
 function main() {
     jacdac.start()
-    ui.wait(1000, "Scanning...")
+    menu.wait(1000, "Scanning...")
     mainMenu()
 }
 

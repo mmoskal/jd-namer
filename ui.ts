@@ -1,22 +1,35 @@
 
-namespace ui {
-    export interface MenuOptions {
+namespace menu {
+    export type Callback = (opts: Options) => void
+    export class Item {
+        public onRight: Callback
+        public onLeft: Callback
+        constructor(public name: string, public cb: Callback) { }
+    }
+
+    export function item(name: string, cb: Callback, onRight?: Callback, onLeft?: Callback) {
+        const item = new Item(name, cb)
+        item.onRight = onRight
+        item.onLeft = onLeft
+        return item
+    }
+
+    export interface Options {
         title: string
         footer?: string
-        elements: string[]
-        onA: (idx: number, opts: MenuOptions) => void
-        onB?: (idx: number, opts: MenuOptions) => void
-        update?: (opts: MenuOptions) => void
+        elements?: Item[]
+        onB?: (opts: Options) => void
+        update?: (opts: Options) => void
         highlightColor?: number
         active?: boolean
     }
 
-    export function exitMenu(opts: MenuOptions) {
+    export function exit(opts: Options) {
         game.popScene()
         opts.active = false
     }
 
-    export function showMenu(opts: MenuOptions) {
+    export function show(opts: Options) {
         let cursor = 0;
         let offset = 0;
         let blinkOut = 0;
@@ -44,21 +57,43 @@ namespace ui {
 
             controller.A.onEvent(ControllerButtonEvent.Pressed, () => {
                 blinkOut = control.millis() + 100
-                control.runInBackground(() => opts.onA(cursor, opts))
+                const e = opts.elements[cursor]
+                if (e && e.cb)
+                    control.runInBackground(() => e.cb(opts))
             })
             controller.B.onEvent(ControllerButtonEvent.Pressed, () => {
                 if (opts.onB) {
                     blinkOut = control.millis() + 100
-                    control.runInBackground(() => opts.onB(cursor, opts))
+                    control.runInBackground(() => opts.onB(opts))
                 } else {
-                    exitMenu(opts)
+                    exit(opts)
+                }
+            })
+
+            controller.left.onEvent(ControllerButtonEvent.Pressed, () => {
+                const e = opts.elements[cursor]
+                if (e && e.onLeft) {
+                    blinkOut = control.millis() + 100
+                    control.runInBackground(() => e.onLeft(opts))
+                }
+            })
+
+            controller.right.onEvent(ControllerButtonEvent.Pressed, () => {
+                const e = opts.elements[cursor]
+                if (e && e.onRight) {
+                    blinkOut = control.millis() + 100
+                    control.runInBackground(() => e.onRight(opts))
                 }
             })
 
             game.onPaint(function () {
+                const x = 10
+                if (opts.elements.length == 0) {
+                    screen.print("Nothing here, press B to go back", x, 60, 4, image.font5)
+                    return
+                }
                 // if elements changed, cursor could be off limits - move(0) will limit it
                 if (cursor >= opts.elements.length) move(0)
-                const x = 10
                 screen.fillRect(0, 0, 160, 12, 12)
                 screen.print(opts.title, x - 1, 2, 4, image.font8)
                 let hl = opts.highlightColor || 5
@@ -67,14 +102,15 @@ namespace ui {
                     else hl = 6
                 }
                 for (let i = 0; i < 9; ++i) {
-                    let e = opts.elements[i + offset] || "";
+                    const e = opts.elements[i + offset];
+                    const ename = e ? e.name : ""
                     let y = 15 + i * 11
                     if (i + offset == cursor) {
                         screen.fillRect(0, y - 2, 160, 11, hl)
-                        screen.print(e, x, y, 15)
+                        screen.print(ename, x, y, 15)
                     }
                     else
-                        screen.print(e, x, y, 1)
+                        screen.print(ename, x, y, 1)
                 }
                 if (opts.footer)
                     screen.print(opts.footer, x, 120 - 6, 4, image.font5)
