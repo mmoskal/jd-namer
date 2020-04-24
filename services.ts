@@ -28,6 +28,40 @@ const serviceDescs = [
         num => jacdac.rotaryEncoderClient.setStreaming(num & 1 ? true : false)),
 ]
 
+class RawSensorClient extends jacdac.SensorClient {
+    constructor(name: string, deviceClass: number, requiredDevice: string) {
+        super(name, deviceClass, requiredDevice)
+    }
+}
+
+function sensorView(d: jacdac.Device, s: ServiceDesc) {
+    const client = new RawSensorClient(s.name, s.classNum, d.deviceId)
+    const reading = menu.item("Reading: ", () => { })
+    client.setStreaming(true)
+    client.onStateChanged(() => {
+        reading.name = "Reading: " + jacdac.intOfBuffer(client.state)
+    })
+
+    menu.show({
+        title: "Device: " + d.shortId + " / " + s.name,
+        update: opts => {
+            opts.elements = [reading]
+            if (!d.isConnected)
+                menu.exit(opts)
+        }
+    })
+
+    client.destroy()
+}
+
+function hexNum(n: number) {
+    const hex = "0123456789abcdef"
+    let r = "0x"
+    for (let i = 0; i < 8; ++i) {
+        r += hex[(n >>> ((7 - i) * 4)) & 0xf]
+    }
+    return r
+}
 
 function deviceView(d: jacdac.Device) {
     if (d == jacdac.selfDevice())
@@ -37,7 +71,7 @@ function deviceView(d: jacdac.Device) {
         const id = d.services.getNumber(NumberFormat.UInt32LE, i)
         let s = serviceDescs.find(s => s.classNum == id)
         if (!s)
-            s = new ServiceDesc(id, "0x" + d.services.slice(i, 4).toHex(), () => { })
+            s = new ServiceDesc(id, "Service: " + hexNum(id), () => { })
         services.push(s)
     }
 
@@ -47,14 +81,16 @@ function deviceView(d: jacdac.Device) {
 
     menu.show({
         title: "Device: " + d.shortId,
-        footer: "A = select/test service",
+        footer: "A = select, -> = test service",
         update: opts => {
             opts.elements = []
             opts.elements.push(menu.item(d.classDescription, noop))
             opts.elements.push(menu.item("Temp: " + (d.temperature || "?") + "C", noop))
-            // opts.elements.push(menu.item("Light: " + (d.lightLevel || "?"), noop))
+            opts.elements.push(menu.item("Light: " + (d.lightLevel || "?"), noop))
             opts.elements.push(menu.item("Identify", () => identify(d)))
             opts.elements = opts.elements.concat(services.map(s => menu.item(s.name, () => {
+                sensorView(d, s)
+            }, () => {
                 s.testFn(++num)
             })))
 

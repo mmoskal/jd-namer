@@ -11,6 +11,8 @@
     "foo": {
         },
     "files": [
+        "appuf2.ts",
+        "appuf2.cpp",
         "ui.ts",
         "main.ts",
         "services.ts",

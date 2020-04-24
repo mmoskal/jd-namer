@@ -112,4 +112,15 @@ function main() {
     mainMenu()
 }
 
+appuf2.init({
+    files: {
+        "readme.txt": "Drop .UF2 files here with JACDAC firmware!",
+        "jd-uf2.txt": "Auto-detect"
+    },
+    volumeLabel: "JACDAC UF2",
+    writeHandler: buf => {
+        control.dmesg("wr: " + buf.length)
+    }
+})
+
 control.runInBackground(main)
