@@ -16,6 +16,7 @@
         "ui.ts",
         "main.ts",
         "services.ts",
+        "jdflash.ts",
         "README.md"
     ],
     "testFiles": [

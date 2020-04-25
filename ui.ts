@@ -87,6 +87,9 @@ namespace menu {
             })
 
             game.onPaint(function () {
+                if (game.consoleOverlay.isVisible())
+                    return
+
                 const x = 10
                 if (opts.elements.length == 0) {
                     screen.print("Nothing here, press B to go back", x, 60, 4, image.font5)

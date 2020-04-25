@@ -54,11 +54,13 @@ function operateDNS(ourDNS: jacdac.Device) {
     menu.show({
         title: "Bind function",
         update: opts => {
-            opts.elements = dns.remoteRequestedDevices.map(r =>
-                menu.item(describeRemote(r), () => {
-                    const newD = selectDevice(r.name, d => r.isCandidate(d))
-                    r.select(newD)
-                }))
+            opts.elements = dns.remoteRequestedDevices
+                .filter(r => r.name && r.name[0] != ".")
+                .map(r =>
+                    menu.item(describeRemote(r), () => {
+                        const newD = selectDevice(r.name, d => r.isCandidate(d))
+                        r.select(newD)
+                    }))
             opts.elements.push(menu.item("Clear all names", () => {
                 dns.clearNames()
                 resetAll() // and reset everyone, just in case
@@ -112,15 +114,35 @@ function main() {
     mainMenu()
 }
 
-appuf2.init({
-    files: {
-        "readme.txt": "Drop .UF2 files here with JACDAC firmware!",
-        "jd-uf2.txt": "Auto-detect"
-    },
-    volumeLabel: "JACDAC UF2",
-    writeHandler: buf => {
-        control.dmesg("wr: " + buf.length)
-    }
-})
+function initUF2() {
+    let lastWrite = 0
+    console.addListener((pri, txt) => control.dmesg("C: " + txt))
+    jacdac.consolePriority = ConsolePriority.Log
+    appuf2.init({
+        files: {
+            "readme.txt": "Drop .UF2 files here with JACDAC firmware!",
+            "jd-uf2.txt": "Auto-detect"
+        },
+        volumeLabel: "JACDAC UF2",
+        writeHandler: buf => {
+            if (!lastWrite) {
+                game.consoleOverlay.setVisible(true)
+                console.log("starting UF2 flash over JACDAC")
+            }
+            lastWrite = 0 // don't reset while we're flashing this block
+            jdflash.handleUF2Block(buf)
+            lastWrite = control.millis()
+        }
+    })
+    jacdac.onAnnounce(() => {
+        if (lastWrite && control.millis() - lastWrite > 1000) {
+            lastWrite = 0
+            console.log("ending flash...")
+            resetAll() // just in case
+            control.reset() // and ourselves, to clear the UF2 cached in the host
+        }
+    })
+}
 
+initUF2()
 control.runInBackground(main)
