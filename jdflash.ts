@@ -1,7 +1,11 @@
 
 namespace jdflash {
     const BL_CMD_PAGE_DATA = 0x80
+    const BL_CMD_SET_SESSION = 0x81
     const BL_SUBPAGE_SIZE = 208
+
+    const numRetries = 3
+
 
     function log(msg: string) {
         console.log(msg)
@@ -11,10 +15,12 @@ namespace jdflash {
         private pageSize: number
         private flashSize: number
         private pageBuffer: Buffer
-        private pageAddr: number
         private offset: number
-        private pageErr: number
+        private sessionId: number
         private classClients: FlashClient[]
+        private pageAddr: number
+        private lastStatus: jacdac.JDPacket
+        private pending: boolean
         public dev_class: number
 
         constructor(adpkt: jacdac.JDPacket) {
@@ -27,19 +33,42 @@ namespace jdflash {
         }
 
         handlePacket(pkt: jacdac.JDPacket) {
-            if (pkt.service_command == BL_CMD_PAGE_DATA) {
-                const [err, addr] = pkt.data.unpack("II")
-                if (this.pageAddr != addr)
-                    this.pageErr = -2
-                else
-                    this.pageErr = err
-            }
+            if (pkt.service_command == BL_CMD_PAGE_DATA)
+                this.lastStatus = pkt
         }
 
         startFlash() {
-            this.start()
-            log(`flashing ${this.requiredDeviceName}; available flash=${this.flashSize / 1024}kb; page=${this.pageSize}b`)
+            this.sessionId = Math.randomRange(0, 0x10000000)
+            for (let d of this.classClients) {
+                d.start()
+                log(`flashing ${d.requiredDeviceName}; available flash=${d.flashSize / 1024}kb; page=${d.pageSize}b`)
+            }
             this.offset = 0
+
+            const setsession = jacdac.JDPacket.packed(BL_CMD_SET_SESSION, "I", [this.sessionId])
+
+            this.allPending()
+
+            for (let i = 0; i < numRetries; ++i) {
+                for (let d of this.classClients) {
+                    if (d.pending) {
+                        if (d.lastStatus && d.lastStatus.getNumber(NumberFormat.UInt32LE, 0) == this.sessionId) {
+                            d.pending = false
+                        } else {
+                            d.lastStatus = null
+                            log(`set session on ${d.requiredDeviceName}`)
+                            d.sendCommand(setsession)
+                        }
+                        pause(5)
+                    }
+                }
+                if (this.numPending() == 0)
+                    break
+                this.waitForStatus()
+            }
+
+            if (this.numPending())
+                throw "Can't set session id"
         }
 
         endFlash() {
@@ -52,6 +81,28 @@ namespace jdflash {
                 f.sendCommand(rst)
         }
 
+        private allPending() {
+            for (let c of this.classClients) {
+                c.pending = true
+                c.lastStatus = null
+            }
+        }
+
+        private numPending() {
+            let num = 0
+            for (let c of this.classClients)
+                if (c.pending) num++
+            return num
+        }
+
+        private waitForStatus() {
+            for (let i = 0; i < 100; ++i) {
+                if (this.numPending() == 0)
+                    break
+                pause(5)
+            }
+        }
+
         private flush() {
             const pageSize = this.pageSize
             const pageAddr = this.pageAddr
@@ -60,41 +111,61 @@ namespace jdflash {
             this.offset = 0
 
             log(`flash at ${pageAddr & 0xffffff}`)
-            let n = 10
 
             for (let f of this.classClients)
-                f.pageErr = null
+                f.lastStatus = null
 
-            while (n-- > 0) {
+            this.allPending()
+            for (let i = 0; i < numRetries; ++i) {
                 let currSubpage = 0
                 for (let suboff = 0; suboff < pageSize; suboff += BL_SUBPAGE_SIZE) {
                     let sz = BL_SUBPAGE_SIZE
                     if (suboff + sz > pageSize)
                         sz = pageSize - suboff
-                    const hd = Buffer.pack("IHBB5I", [pageAddr, suboff, currSubpage++, numSubpage - 1, 0, 0, 0, 0, 0])
+                    const hd = Buffer.pack("IHBB5I", [pageAddr, suboff, currSubpage++, numSubpage - 1, this.sessionId, 0, 0, 0, 0])
                     control.assert(hd.length == 4 * 7, 11)
                     const p = jacdac.JDPacket.from(BL_CMD_PAGE_DATA, hd.concat(this.pageBuffer.slice(suboff, sz)))
-                    for (let f of this.classClients)
-                        if (f.pageErr !== 0)
-                            f.sendCommand(p)
+
+                    // in first round, just broadcast everything
+                    // in other rounds, broadcast everything except for last packet
+                    if (i == 0 || currSubpage < numSubpage)
+                        p.sendAsMultiCommand(jd_class.BOOTLOADER)
+                    else {
+                        for (let f of this.classClients)
+                            if (f.pending) {
+                                f.lastStatus = null
+                                f.sendCommand(p)
+                            }
+                    }
                     pause(5)
                 }
 
-                for (let i = 0; i < 100; ++i) {
-                    if (!this.classClients.find(f => f.pageErr == null))
-                        break
-                    pause(5)
-                }
+                this.waitForStatus()
 
-                let numerr = 0
                 for (let f of this.classClients) {
-                    if (f.pageErr == 0) continue
-                    log(`retry ${f.device}; err=${this.pageErr}`)
-                    numerr++
-                    f.pageErr = null
+                    if (f.pending) {
+                        let err = ""
+                        if (f.lastStatus) {
+                            const [sess, berr, pageAddr] = f.lastStatus.data.unpack("III")
+                            if (sess != this.sessionId)
+                                err = "invalid session_id"
+                            else if (pageAddr != this.pageAddr)
+                                err = "invalid page address"
+                            else if (berr)
+                                err = "err:" + berr
+                        } else {
+                            err = "timeout"
+                        }
+                        if (err) {
+                            f.lastStatus = null
+                            log(`retry ${f.device}: ${err}`)
+                        } else {
+                            f.pending = false
+                        }
+                    }
                 }
 
-                if (!numerr) {
+                if (this.numPending() == 0) {
                     this.pageAddr = null
                     return
                 }
@@ -203,13 +274,13 @@ namespace jdflash {
         const [_magic0, _magic1, _flags, trgaddr, payloadSize, blkNo, numBlocks, familyID] = hh.toArray(NumberFormat.UInt32LE)
         if (skippingFamilyId == familyID)
             return
-        control.dmesg(`uf2: ${hexNum(_magic0)} ${blkNo}/${numBlocks} fam=${hexNum(familyID)}`)
+        // control.dmesg(`uf2: ${hexNum(_magic0)} ${blkNo}/${numBlocks} fam=${hexNum(familyID)}`)
         if (blkNo == 0) {
             if (currFlasher)
                 currFlasher.endFlash()
             currFlasher = FlashClient.forDeviceClass(familyID)
             if (!currFlasher) {
-                log(`skipping family ${familyID} - no bootloaders for it`)
+                log(`skipping family ${hexNum(familyID)} - no bootloaders for it`)
                 skippingFamilyId = familyID
                 return
             }

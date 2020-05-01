@@ -126,6 +126,7 @@ function initUF2() {
         volumeLabel: "JACDAC UF2",
         writeHandler: buf => {
             if (!lastWrite) {
+                game.pushScene() // clear screen
                 game.consoleOverlay.setVisible(true)
                 console.log("starting UF2 flash over JACDAC")
             }
@@ -137,8 +138,9 @@ function initUF2() {
     jacdac.onAnnounce(() => {
         if (lastWrite && control.millis() - lastWrite > 1000) {
             lastWrite = 0
-            console.log("ending flash...")
+            console.log("ending flash... press any key")
             resetAll() // just in case
+            pauseUntil(() => controller.anyButton.isPressed())
             control.reset() // and ourselves, to clear the UF2 cached in the host
         }
     })
