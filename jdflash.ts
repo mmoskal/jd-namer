@@ -45,6 +45,9 @@ namespace jdflash {
             }
             this.offset = 0
 
+            pauseUntil(() => this.classClients.every(c => c.isConnected()))
+            log(`all connected`)
+
             const setsession = jacdac.JDPacket.packed(BL_CMD_SET_SESSION, "I", [this.sessionId])
 
             this.allPending()
@@ -56,7 +59,7 @@ namespace jdflash {
                             d.pending = false
                         } else {
                             d.lastStatus = null
-                            log(`set session on ${d.requiredDeviceName}`)
+                            log(`set session on ${d.device}`)
                             d.sendCommand(setsession)
                         }
                         pause(5)
@@ -97,7 +100,7 @@ namespace jdflash {
 
         private waitForStatus() {
             for (let i = 0; i < 100; ++i) {
-                if (this.numPending() == 0)
+                if (this.classClients.every(c => c.lastStatus != null))
                     break
                 pause(5)
             }
