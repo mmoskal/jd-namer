@@ -81,6 +81,26 @@ function resetAll() {
         .sendAsMultiCommand(jd_class.CTRL)
 }
 
+let consoleClient: jacdac.ConsoleClient
+
+function startConsole() {
+    if (!consoleClient) {
+        consoleClient = new jacdac.ConsoleClient()
+        consoleClient.minPriority = JDConsolePriority.Debug
+        consoleClient.start()
+    }
+    game.pushScene() // black bg
+    game.consoleOverlay.setVisible(true)
+    console.log("Console started; B to exit...")
+    let done = false
+    controller.B.onEvent(ControllerButtonEvent.Pressed, () => {
+        done = true
+    })
+    pauseUntil(() => done)
+    game.consoleOverlay.setVisible(false)
+    game.popScene()
+}
+
 function deviceBrowser() {
     let devs: jacdac.Device[] = []
     menu.show({
@@ -102,6 +122,7 @@ function mainMenu() {
         title: "JACDAC tool",
         update: opts => {
             opts.elements = allDNSes().map(d => menu.item("DNS: " + describe(d), () => operateDNS(d)))
+            opts.elements.push(menu.item("Console", startConsole))
             opts.elements.push(menu.item("Device browser", deviceBrowser))
             opts.elements.push(menu.item("Reset all devices", resetAll))
         }
@@ -116,7 +137,7 @@ function main() {
 
 function initUF2() {
     let lastWrite = 0
-    console.addListener((pri, txt) => control.dmesg("C: " + txt))
+    console.addListener((pri, txt) => control.dmesg("C: " + txt.slice(0, -1)))
     jacdac.consolePriority = ConsolePriority.Log
     appuf2.init({
         files: {
