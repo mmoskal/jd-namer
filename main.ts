@@ -105,10 +105,12 @@ function deviceBrowser() {
     let devs: jacdac.Device[] = []
     menu.show({
         title: "JACDAC browser",
+        footer: "A=view, > test, < ID",
         update: opts => {
             devs = jacdac.devices()
             devs.sort((a, b) => a.shortId.compare(b.shortId))
-            opts.elements = devs.map(d => menu.item(describe(d), () => deviceView(d)))
+            opts.elements = devs.map(d => menu.item(describe(d), () => deviceView(d),
+                () => testDevice(d), () => identify(d)))
         }
     })
 }
@@ -122,8 +124,8 @@ function mainMenu() {
         title: "JACDAC tool",
         update: opts => {
             opts.elements = allDNSes().map(d => menu.item("DNS: " + describe(d), () => operateDNS(d)))
-            opts.elements.push(menu.item("Console", startConsole))
             opts.elements.push(menu.item("Device browser", deviceBrowser))
+            opts.elements.push(menu.item("Console", startConsole))
             opts.elements.push(menu.item("Reset all devices", resetAll))
         }
     })

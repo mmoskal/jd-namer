@@ -2,7 +2,7 @@ class ServiceDesc {
     constructor(
         public classNum: number,
         public name: string,
-        public testFn: (num: number) => void
+        public testFn?: (num: number) => void
     ) { }
 }
 
@@ -10,10 +10,36 @@ const serviceDescs = [
     new ServiceDesc(jd_class.ACCELEROMETER, "acc",
         num => jacdac.accelerometerClient.setStreaming(num & 1 ? true : false)),
     new ServiceDesc(jd_class.LIGHT, "light", (num) => {
-        jacdac.monoLightClient.setBrightness(5)
-        jacdac.lightClient.setAll(0x550055)
-        pause(500)
-        jacdac.lightClient.setAll(0x0)
+        const cl = jacdac.lightClient
+        cl.setBrightness(15)
+        cl.setStrip(88)
+
+                //cl.showAnimation(new jacdac.RainbowCycleAnimation(), 5000)
+                //cl.showAnimation(new jacdac.RunningLightsAnimation(), 5000)
+                //cl.showAnimation(new jacdac.TheaterChaseAnimation(), 0)
+        /*
+        switch (num % 5) {
+            case 0:
+                cl.runEncoded("fadehsv 0 14 #ffff00 #ffffff")
+                break
+            case 1:
+                cl.runEncoded("set 0 14 #ff0000 #00ff00 #0000ff")
+                break
+            case 2:
+                cl.runEncoded("fade 0 14 #ff0000 #0000ff #000000")
+                break
+            case 3:
+                cl.showAnimation(new jacdac.RainbowCycleAnimation(), 5000)
+                break
+            case 4:
+                cl.showAnimation(new jacdac.RunningLightsAnimation(), 5000)
+                break
+        }
+        */
+
+
+        //pause(500)
+        //cl.setAll(0x0)
         //jacdac.monoLightClient.setBrightness(0)
     }),
     new ServiceDesc(jd_class.SERVO, "servo", num =>
@@ -24,8 +50,13 @@ const serviceDescs = [
         jacdac.monoLightClient.setIterations(1)
         jacdac.monoLightClient.showAnimation(jacdac.mono.slowGlow)
     }),
+    new ServiceDesc(jd_class.LOGGER, "logger"),
     new ServiceDesc(jd_class.ROTARY_ENCODER, "crank",
         num => jacdac.rotaryEncoderClient.setStreaming(num & 1 ? true : false)),
+    new ServiceDesc(jd_class.BUTTON, "btn",
+        num => jacdac.rotaryEncoderClient.setStreaming(num & 1 ? true : false)),
+    new ServiceDesc(jd_class.MUSIC, "music",
+        num => jacdac.musicClient.playMelody(music.jumpDown, 20)),
 ]
 
 class RawSensorClient extends jacdac.SensorClient {
@@ -63,6 +94,25 @@ function hexNum(n: number) {
     return r
 }
 
+let testDevN = 0
+let lastDev: jacdac.Device
+function testDevice(d: jacdac.Device) {
+    if (d == jacdac.selfDevice())
+        return
+    if (d != lastDev)
+        testDevN = 1
+    else
+        testDevN++
+    lastDev = d
+    for (let i = 4; i < d.services.length; i += 4) {
+        const id = d.services.getNumber(NumberFormat.UInt32LE, i)
+        let s = serviceDescs.find(s => s.classNum == id)
+        if (s && s.testFn) {
+            s.testFn(testDevN)
+        }
+    }
+}
+
 function deviceView(d: jacdac.Device) {
     if (d == jacdac.selfDevice())
         return
@@ -90,8 +140,11 @@ function deviceView(d: jacdac.Device) {
             opts.elements.push(menu.item("Identify", () => identify(d)))
             opts.elements = opts.elements.concat(services.map(s => menu.item(s.name, () => {
                 sensorView(d, s)
-            }, () => {
-                s.testFn(++num)
+            }, opts => {
+                if (s.testFn) {
+                    s.testFn(++num)
+                    opts.title = "Device: " + d.shortId + " T:" + num
+                }
             })))
 
             if (!d.isConnected)
