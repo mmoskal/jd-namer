@@ -1,6 +1,7 @@
 {
     "name": "JD namer",
     "description": "",
+    "version": "0.0.0",
     "dependencies": {
         "hw---stm32f401": "*",
         "controller": "*",
