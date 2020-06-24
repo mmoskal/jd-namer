@@ -39,5 +39,5 @@ jobs:
       - name: Upload results
         uses: actions/upload-artifact@v1
         with:
-          name: drop.uf2
-          path: built/drop.uf2
+          name: combined-f4-d5.uf2
+          path: drop.uf2
