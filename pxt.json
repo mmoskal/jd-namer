@@ -3,10 +3,10 @@
     "version": "0.0.1",
     "description": "",
     "dependencies": {
-        "hw---stm32f401": "*",
+        "hw": "*",
+        "device": "*",
         "controller": "*",
         "edge-connector": "*",
-        "device": "*",
         "net": "*",
         "jacdac-services": "github:microsoft/pxt-jacdac-services#v0.0.2"
     },
