@@ -2,13 +2,12 @@
     "name": "JD namer",
     "description": "",
     "dependencies": {
-        "hw---stm32f401": "file:../../libs/hw---stm32f401",
-        "controller": "file:../../libs/controller",
-        "edge-connector": "file:../../libs/edge-connector",
-        "device": "file:../../libs/device",
-        "settings": "file:../../libs/settings",
-        "net": "file:../../libs/net",
-        "jacdac-services": "file:../../../pxt-jacdac-services"
+        "hw---stm32f401": "*",
+        "controller": "*",
+        "edge-connector": "*",
+        "device": "*",
+        "net": "*",
+        "jacdac-services": "github:microsoft/pxt-jacdac-services#v0.0.2"
     },
     "files": [
         "appuf2.ts",
