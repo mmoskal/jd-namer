@@ -11,31 +11,38 @@ const serviceDescs = [
         num => jacdac.accelerometerClient.setStreaming(num & 1 ? true : false)),
     new ServiceDesc(jd_class.LIGHT, "light", (num) => {
         const cl = jacdac.lightClient
-        cl.setBrightness(15)
-        cl.setStrip(88)
+        cl.setBrightness(10)
+        cl.setStrip(128, jacdac.LightType.WS2812B_SK9822)
 
-                //cl.showAnimation(new jacdac.RainbowCycleAnimation(), 5000)
-                //cl.showAnimation(new jacdac.RunningLightsAnimation(), 5000)
-                //cl.showAnimation(new jacdac.TheaterChaseAnimation(), 0)
-        /*
-        switch (num % 5) {
+        const duration = 30 * 1000
+        //cl.showAnimation(new jacdac.lightanimation.ColorWipe, duration)
+
+        switch (num % 8) {
             case 0:
-                cl.runEncoded("fadehsv 0 14 #ffff00 #ffffff")
+                cl.runEncoded("setall #000000")
                 break
             case 1:
-                cl.runEncoded("set 0 14 #ff0000 #00ff00 #0000ff")
+                cl.showAnimation(new jacdac.lightanimation.Comet, duration)
                 break
             case 2:
-                cl.runEncoded("fade 0 14 #ff0000 #0000ff #000000")
+                cl.showAnimation(new jacdac.lightanimation.Fireflys, duration)
                 break
             case 3:
-                cl.showAnimation(new jacdac.RainbowCycleAnimation(), 5000)
+                cl.showAnimation(new jacdac.lightanimation.RainbowCycle, duration)
                 break
             case 4:
-                cl.showAnimation(new jacdac.RunningLightsAnimation(), 5000)
+                cl.showAnimation(new jacdac.lightanimation.RunningLights, duration)
+                break
+            case 5:
+                cl.showAnimation(new jacdac.lightanimation.Sparkle, duration)
+                break
+            case 6:
+                cl.showAnimation(new jacdac.lightanimation.TheaterChase, duration)
+                break
+            case 7:
+                cl.showAnimation(new jacdac.lightanimation.ColorWipe, duration)
                 break
         }
-        */
 
 
         //pause(500)
@@ -45,6 +52,8 @@ const serviceDescs = [
     new ServiceDesc(jd_class.SERVO, "servo", num =>
         (num & 3) == 0 ? jacdac.servoClient.turnOff() :
             jacdac.servoClient.setAngle(num & 1 ? 90 : 45)),
+    new ServiceDesc(jd_class.MOTOR, "motor", num =>
+        jacdac.motorClient.run(((num % 11) - 5) * 20)),
     new ServiceDesc(jd_class.PWM_LIGHT, "glo", num => {
         jacdac.monoLightClient.setBrightness(num & 1 ? 50 : 0)
         jacdac.monoLightClient.setIterations(1)
@@ -135,9 +144,10 @@ function deviceView(d: jacdac.Device) {
         update: opts => {
             opts.elements = []
             opts.elements.push(menu.item(d.classDescription, noop))
+            opts.elements.push(menu.item("Version: " + (d.firmwareVersion || "?"), noop))
             opts.elements.push(menu.item("Temp: " + (d.temperature || "?") + "C", noop))
-            opts.elements.push(menu.item("Light: " + (d.lightLevel || "?"), noop))
             opts.elements.push(menu.item("Identify", () => identify(d)))
+            opts.elements.push(menu.item("---", noop))
             opts.elements = opts.elements.concat(services.map(s => menu.item(s.name, () => {
                 sensorView(d, s)
             }, opts => {

@@ -83,15 +83,13 @@ function resetAll() {
 
 let consoleClient: jacdac.ConsoleClient
 
-function startConsole() {
-    if (!consoleClient) {
-        consoleClient = new jacdac.ConsoleClient()
-        consoleClient.minPriority = JDConsolePriority.Debug
-        consoleClient.start()
-    }
+function showConsole() {
     game.pushScene() // black bg
     game.consoleOverlay.setVisible(true)
-    console.log("Console started; B to exit...")
+}
+
+function hideConsole() {
+    console.log("B to exit...")
     let done = false
     controller.B.onEvent(ControllerButtonEvent.Pressed, () => {
         done = true
@@ -99,6 +97,34 @@ function startConsole() {
     pauseUntil(() => done)
     game.consoleOverlay.setVisible(false)
     game.popScene()
+}
+
+function startConsole() {
+    if (!consoleClient) {
+        consoleClient = new jacdac.ConsoleClient()
+        consoleClient.minPriority = JDConsolePriority.Debug
+        consoleClient.start()
+    }
+    showConsole()
+    hideConsole()
+}
+
+function wifi() {
+    showConsole()
+
+    console.log("WiFi starting...")
+    net.logPriority = ConsolePriority.Log
+    const n = net.instance()
+    const cl = n.controller
+    cl.connect()
+    pauseUntil(() => cl.isConnected)
+    console.log("connected; MAC:" + cl.MACaddress.toHex())
+
+    const resp = net.get("https://pxt.io/api/ping")
+    console.log("resp: " + resp.toString())
+
+
+    hideConsole()
 }
 
 function deviceBrowser() {
@@ -125,6 +151,7 @@ function mainMenu() {
         update: opts => {
             opts.elements = allDNSes().map(d => menu.item("DNS: " + describe(d), () => operateDNS(d)))
             opts.elements.push(menu.item("Device browser", deviceBrowser))
+            opts.elements.push(menu.item("WiFi", wifi))
             opts.elements.push(menu.item("Console", startConsole))
             opts.elements.push(menu.item("Reset all devices", resetAll))
         }

@@ -7,6 +7,7 @@
         "edge-connector": "file:../../libs/edge-connector",
         "device": "file:../../libs/device",
         "settings": "file:../../libs/settings",
+        "net": "file:../../libs/net",
         "jacdac-services": "file:../../../pxt-jacdac-services"
     },
     "files": [
