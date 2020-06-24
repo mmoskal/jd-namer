@@ -144,7 +144,7 @@ function deviceView(d: jacdac.Device) {
         update: opts => {
             opts.elements = []
             opts.elements.push(menu.item(d.classDescription, noop))
-            opts.elements.push(menu.item("Version: " + (d.firmwareVersion || "?"), noop))
+            opts.elements.push(menu.item(d.firmwareVersion, noop))
             opts.elements.push(menu.item("Temp: " + (d.temperature || "?") + "C", noop))
             opts.elements.push(menu.item("Identify", () => identify(d)))
             opts.elements.push(menu.item("---", noop))
