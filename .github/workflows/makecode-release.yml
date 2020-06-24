@@ -42,13 +42,6 @@ jobs:
           pxt install --hw stm32f401
           pxt build --hw stm32f401 --cloud
           cp ./built/binary.uf2 binary-f4.uf2
-      - name: build P0
-        continue-on-error: true
-        run: |
-          pxt clean
-          pxt install --hw rpi
-          pxt build --hw rpi --cloud
-          cp ./built/binary.uf2 binary-p0.uf2
       - name: bundle all
         run: |
           cat binary-*.uf2 > built/arcade.uf2
